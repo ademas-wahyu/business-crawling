@@ -1,0 +1,50 @@
+{
+  "packs": {
+    "Kesehatan": [
+      "klinik",
+      "klinik gigi",
+      "dokter gigi",
+      "dokter umum",
+      "apotek"
+    ],
+    "Kuliner": [
+      "cafe",
+      "restoran",
+      "bakery",
+      "catering",
+      "coffee shop"
+    ],
+    "Beauty": [
+      "salon",
+      "barbershop",
+      "spa",
+      "nail art"
+    ],
+    "Jasa Rumah": [
+      "kontraktor",
+      "interior",
+      "bengkel",
+      "cleaning service",
+      "laundry"
+    ],
+    "Edukasi": [
+      "kursus",
+      "bimbel",
+      "daycare",
+      "tempat les"
+    ]
+  },
+  "excluded_keywords": [
+    "indomaret",
+    "alfamart",
+    "starbucks",
+    "kfc",
+    "mcdonald",
+    "transmart",
+    "superindo",
+    "mitra10",
+    "rumah sakit",
+    "hotel",
+    "mall"
+  ]
+}
