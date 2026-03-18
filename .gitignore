@@ -40,3 +40,10 @@ Thumbs.db
 *.log
 shortlist_leads.csv
 hasil_crawling_gmaps.csv
+
+# data
+data/*.csv
+data/*.db
+data/*.sqlite3
+.state/*.working.csv
+.state/*.checkpoint.json

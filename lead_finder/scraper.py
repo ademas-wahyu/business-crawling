@@ -4,7 +4,7 @@ from collections import OrderedDict
 from typing import Callable, Optional
 from urllib.parse import quote_plus
 
-from .models import RawPlaceRecord, ScrapeConfig, SearchQuery
+from .models import DiscoveredPlace, RawPlaceRecord, ScrapeCheckpoint, ScrapeConfig, SearchQuery
 from .utils import normalize_maps_url
 
 try:
@@ -19,6 +19,12 @@ except ModuleNotFoundError:
     By = EC = WebDriverWait = None
 
 LogCallback = Callable[[str], None]
+CheckpointCallback = Callable[[ScrapeCheckpoint], None]
+RecordCallback = Callable[[RawPlaceRecord], None]
+
+
+class CaptchaDetectedError(RuntimeError):
+    pass
 
 
 class GoogleMapsScraper:
@@ -28,6 +34,15 @@ class GoogleMapsScraper:
         self.driver = None
 
     def run(self) -> list[RawPlaceRecord]:
+        return self.run_resumable().copy()
+
+    def run_resumable(
+        self,
+        checkpoint: Optional[ScrapeCheckpoint] = None,
+        existing_records: Optional[list[RawPlaceRecord]] = None,
+        on_checkpoint: Optional[CheckpointCallback] = None,
+        on_record: Optional[RecordCallback] = None,
+    ) -> list[RawPlaceRecord]:
         if webdriver is None:
             raise RuntimeError("Paket selenium belum terpasang. Jalankan: pip install selenium")
 
@@ -35,26 +50,61 @@ class GoogleMapsScraper:
         if not queries:
             raise ValueError("Pilih minimal satu niche pack dan isi minimal satu wilayah.")
 
+        state = checkpoint or ScrapeCheckpoint(session_name="default")
+        state.query_cursor = max(0, min(state.query_cursor, len(queries)))
+        place_map: OrderedDict[str, SearchQuery] = OrderedDict(
+            (item.maps_url, item.search_query)
+            for item in state.discovered_places
+            if item.maps_url
+        )
+        raw_records = list(existing_records or [])
+        scraped_urls: OrderedDict[str, None] = OrderedDict(
+            (record.maps_url, None)
+            for record in raw_records
+            if record.maps_url
+        )
+        for url in state.scraped_urls:
+            if url:
+                scraped_urls[url] = None
+
         self.driver = self._build_driver()
-        place_map: OrderedDict[str, SearchQuery] = OrderedDict()
         try:
             self.log(f"Menjalankan {len(queries)} query Google Maps...")
-            for index, search_query in enumerate(queries, start=1):
+            for index in range(state.query_cursor, len(queries)):
                 if self._max_results_reached(place_map):
                     break
+                search_query = queries[index]
                 remaining = self._remaining_slots(place_map)
-                self.log(f"[{index}/{len(queries)}] Cari: {search_query.query}")
+                self.log(f"[{index + 1}/{len(queries)}] Cari: {search_query.query}")
                 urls = self._collect_place_urls(search_query.query, remaining)
                 for url in urls:
                     normalized = normalize_maps_url(url)
                     if normalized not in place_map:
                         place_map[normalized] = search_query
+                state.query_cursor = index + 1
+                state.discovered_places = [
+                    DiscoveredPlace(maps_url=url, search_query=query)
+                    for url, query in place_map.items()
+                ]
+                self._save_checkpoint(state, on_checkpoint)
                 self.log(f"Total lead unik sementara: {len(place_map)}")
 
-            raw_records: list[RawPlaceRecord] = []
             total = len(place_map)
             for index, (url, search_query) in enumerate(place_map.items(), start=1):
+                if url in scraped_urls:
+                    continue
                 raw_records.append(self._scrape_place_detail(url, search_query, index, total))
+                if on_record is not None:
+                    on_record(raw_records[-1])
+                scraped_urls[url] = None
+                state.scraped_urls = list(scraped_urls.keys())
+                state.discovered_places = [
+                    DiscoveredPlace(maps_url=maps_url, search_query=query)
+                    for maps_url, query in place_map.items()
+                ]
+                state.blocked_reason = ""
+                state.status = "running"
+                self._save_checkpoint(state, on_checkpoint)
             return raw_records
         finally:
             if self.driver is not None:
@@ -124,6 +174,7 @@ class GoogleMapsScraper:
         search_url = f"https://www.google.com/maps/search/{quote_plus(query)}"
         self.driver.get(search_url)
         time.sleep(2)
+        self._raise_if_blocked("halaman pencarian")
         self._try_dismiss_cookie_popup()
 
         try:
@@ -134,6 +185,7 @@ class GoogleMapsScraper:
             current_url = normalize_maps_url(self.driver.current_url)
             if "/maps/place/" in current_url:
                 return [current_url]
+            self._raise_if_blocked("halaman pencarian")
             raise RuntimeError(
                 "Panel hasil Google Maps tidak muncul. Bisa jadi ada CAPTCHA atau layout berubah."
             )
@@ -167,6 +219,7 @@ class GoogleMapsScraper:
             self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", feed)
             scroll_count += 1
             time.sleep(self.config.scroll_pause)
+            self._raise_if_blocked("proses scroll hasil pencarian")
 
         return list(collected.keys())
 
@@ -194,6 +247,7 @@ class GoogleMapsScraper:
     ) -> RawPlaceRecord:
         self.driver.get(url)
         time.sleep(self.config.detail_pause)
+        self._raise_if_blocked("halaman detail bisnis")
 
         name = self._find_text(["h1.DUwDvf", "h1.fontHeadlineLarge"], wait_seconds=10)
         category = self._find_text(
@@ -299,3 +353,30 @@ class GoogleMapsScraper:
 
     def _max_results_reached(self, place_map: OrderedDict[str, SearchQuery]) -> bool:
         return self.config.max_results > 0 and len(place_map) >= self.config.max_results
+
+    def _save_checkpoint(
+        self,
+        state: ScrapeCheckpoint,
+        callback: Optional[CheckpointCallback],
+    ) -> None:
+        if callback is None:
+            return
+        callback(state)
+
+    def _raise_if_blocked(self, page_name: str) -> None:
+        current_url = (self.driver.current_url or "").lower()
+        page_source = (self.driver.page_source or "").lower()
+        signals = [
+            "/sorry/",
+            "captcha",
+            "not a robot",
+            "unusual traffic",
+            "traffic tidak biasa",
+            "detected unusual traffic",
+        ]
+        if any(signal in current_url for signal in signals) or any(
+            signal in page_source for signal in signals
+        ):
+            raise CaptchaDetectedError(
+                f"Google Maps meminta verifikasi/CAPTCHA di {page_name}. Jalankan ulang untuk resume."
+            )

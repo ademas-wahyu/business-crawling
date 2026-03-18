@@ -6,6 +6,7 @@ from typing import Any
 
 from .defaults import DEFAULT_EXPORT_COLUMNS
 from .models import LeadAudit, LeadFilters, RawPlaceRecord, ScrapeConfig
+from .scoring import describe_opportunity
 from .utils import ensure_csv_path, ensure_parent_dir, extract_domain, guess_city, now_utc_iso
 
 
@@ -311,21 +312,56 @@ class LeadDatabase:
             )
         self.connection.commit()
 
-    def export_leads(self, filters: LeadFilters, output_path: str) -> tuple[Path, int]:
+    def export_leads(
+        self,
+        filters: LeadFilters,
+        output_path: str,
+        opportunity_fit_filter: str = "",
+    ) -> tuple[Path, int]:
         rows = self.list_leads(filters)
+        return self._export_rows(rows, output_path, opportunity_fit_filter)
+
+    def export_leads_by_ids(
+        self,
+        lead_ids: list[int],
+        output_path: str,
+        opportunity_fit_filter: str = "",
+    ) -> tuple[Path, int]:
+        unique_ids = list(dict.fromkeys(lead_ids))
+        rows = self.get_leads_by_ids(unique_ids)
+        rows.sort(
+            key=lambda row: (
+                -int(row.get("lead_score") or 0),
+                str(row.get("nama_usaha") or "").lower(),
+            )
+        )
+        return self._export_rows(rows, output_path, opportunity_fit_filter)
+
+    def _export_rows(
+        self,
+        rows: list[dict[str, Any]],
+        output_path: str,
+        opportunity_fit_filter: str = "",
+    ) -> tuple[Path, int]:
         csv_rows: list[dict[str, Any]] = []
         for row in rows:
+            opportunity_fit, opportunity_reason = describe_opportunity(row)
+            if opportunity_fit_filter and opportunity_fit != opportunity_fit_filter:
+                continue
             csv_rows.append(
                 {
+                    "opportunity_fit": opportunity_fit,
+                    "opportunity_reason": opportunity_reason,
                     "lead_tier": row["lead_tier"],
                     "lead_score": row["lead_score"],
                     "nama_usaha": row["nama_usaha"],
                     "kategori": row["kategori"],
                     "alamat": row["alamat"],
                     "city": row["city"],
-                    "website_url": row["website_url"],
+                    "website_url": row["website_url"] or "-",
                     "website_status": row["website_status"],
-                    "nomor_telepon": row["phone"],
+                    "audit_http_status": row["audit_http_status"],
+                    "nomor_telepon": row["phone"] or "-",
                     "rating": row["rating"],
                     "review_count": row["review_count"],
                     "workflow_status": row["workflow_status"],

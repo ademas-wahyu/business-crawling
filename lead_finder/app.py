@@ -4,7 +4,7 @@ from typing import Callable, Optional
 
 from .audit import WebsiteAuditor
 from .defaults import DEFAULT_NICHE_PACKS_PATH, default_niche_payload
-from .models import LeadAudit, LeadFilters, ScrapeConfig
+from .models import LeadAudit, LeadFilters, RawPlaceRecord, ScrapeConfig
 from .scoring import calculate_lead_score
 from .scraper import GoogleMapsScraper
 from .storage import LeadDatabase
@@ -70,22 +70,28 @@ class LeadFinderService:
     def __init__(self, logger: Optional[LogCallback] = None) -> None:
         self.log = logger or (lambda _message: None)
 
-    def run_search(self, config: ScrapeConfig) -> dict[str, int]:
-        total_found = 0
+    def run_search(self, config: ScrapeConfig) -> dict[str, object]:
+        scraper = GoogleMapsScraper(config=config, logger=self.log)
+        raw_records = scraper.run()
+        return self.process_raw_records(config, raw_records)
+
+    def process_raw_records(
+        self,
+        config: ScrapeConfig,
+        raw_records: list[RawPlaceRecord],
+    ) -> dict[str, object]:
+        total_found = len(raw_records)
         total_scored = 0
 
         with LeadDatabase(config.db_path) as database:
             run_id = database.start_run(config)
             try:
-                scraper = GoogleMapsScraper(config=config, logger=self.log)
-                raw_records = scraper.run()
-                total_found = len(raw_records)
-
                 lead_ids: list[int] = []
                 for record in raw_records:
                     lead_ids.append(database.upsert_lead(record, run_id))
 
-                leads = database.get_leads_by_ids(lead_ids)
+                unique_lead_ids = list(dict.fromkeys(lead_ids))
+                leads = database.get_leads_by_ids(unique_lead_ids)
                 audits: dict[int, LeadAudit] = {}
 
                 for lead in leads:
@@ -113,7 +119,7 @@ class LeadFinderService:
                 for lead_id, audit in audits.items():
                     database.save_audit(lead_id, audit)
 
-                for lead_id in lead_ids:
+                for lead_id in unique_lead_ids:
                     current = database.get_lead(lead_id)
                     score, tier, excluded = calculate_lead_score(
                         current,
@@ -128,6 +134,7 @@ class LeadFinderService:
                     "total_found": total_found,
                     "total_scored": total_scored,
                     "audited": len(audits),
+                    "lead_ids": unique_lead_ids,
                 }
             except Exception as exc:
                 database.finish_run(run_id, "error", total_found, total_scored, str(exc))
@@ -152,6 +159,22 @@ class LeadFinderService:
         with LeadDatabase(db_path) as database:
             database.update_lead_workflow(lead_id, workflow_status, notes, mark_contacted_now)
 
-    def export_leads(self, db_path: str, filters: LeadFilters, output_path: str) -> tuple[Path, int]:
+    def export_leads(
+        self,
+        db_path: str,
+        filters: LeadFilters,
+        output_path: str,
+        opportunity_fit_filter: str = "",
+    ) -> tuple[Path, int]:
         with LeadDatabase(db_path) as database:
-            return database.export_leads(filters, output_path)
+            return database.export_leads(filters, output_path, opportunity_fit_filter)
+
+    def export_leads_by_ids(
+        self,
+        db_path: str,
+        lead_ids: list[int],
+        output_path: str,
+        opportunity_fit_filter: str = "",
+    ) -> tuple[Path, int]:
+        with LeadDatabase(db_path) as database:
+            return database.export_leads_by_ids(lead_ids, output_path, opportunity_fit_filter)

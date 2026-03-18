@@ -45,6 +45,8 @@ WEBSITE_STATUSES = [
 LEAD_TIERS = ["A", "B", "C"]
 
 DEFAULT_EXPORT_COLUMNS = [
+    "opportunity_fit",
+    "opportunity_reason",
     "lead_tier",
     "lead_score",
     "nama_usaha",
@@ -53,6 +55,7 @@ DEFAULT_EXPORT_COLUMNS = [
     "city",
     "website_url",
     "website_status",
+    "audit_http_status",
     "nomor_telepon",
     "rating",
     "review_count",
