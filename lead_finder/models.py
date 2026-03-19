@@ -30,10 +30,14 @@ class SearchQuery:
 class ScrapeConfig:
     selected_niche_packs: list[str]
     niche_packs: dict[str, list[str]] = field(
-        default_factory=lambda: {key: value[:] for key, value in DEFAULT_NICHE_PACKS.items()}
+        default_factory=lambda: {
+            key: value[:] for key, value in DEFAULT_NICHE_PACKS.items()
+        }
     )
     locations: list[str] = field(default_factory=list)
-    excluded_keywords: list[str] = field(default_factory=lambda: DEFAULT_EXCLUSION_KEYWORDS[:])
+    excluded_keywords: list[str] = field(
+        default_factory=lambda: DEFAULT_EXCLUSION_KEYWORDS[:]
+    )
     db_path: str = DEFAULT_DB_PATH
     max_scrolls: int = 0
     max_results: int = 0
@@ -86,7 +90,9 @@ class RawPlaceRecord:
             nomor_telepon=str(payload.get("nomor_telepon") or ""),
             maps_url=str(payload.get("maps_url") or ""),
             rating=float(rating) if rating not in ("", None, "-") else None,
-            review_count=int(review_count) if review_count not in ("", None, "-") else None,
+            review_count=int(review_count)
+            if review_count not in ("", None, "-")
+            else None,
         )
 
 
@@ -103,9 +109,13 @@ class DiscoveredPlace:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "DiscoveredPlace":
+        raw_search_query = payload.get("search_query")
+        search_query_payload = (
+            raw_search_query if isinstance(raw_search_query, dict) else {}
+        )
         return cls(
             maps_url=str(payload.get("maps_url") or ""),
-            search_query=SearchQuery.from_dict(dict(payload.get("search_query") or {})),
+            search_query=SearchQuery.from_dict(search_query_payload),
         )
 
 
@@ -138,13 +148,17 @@ class ScrapeCheckpoint:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ScrapeCheckpoint":
-        discovered_places = payload.get("discovered_places") or []
-        scraped_urls = payload.get("scraped_urls") or []
+        raw_discovered_places = payload.get("discovered_places")
+        discovered_places = (
+            raw_discovered_places if isinstance(raw_discovered_places, list) else []
+        )
+        raw_scraped_urls = payload.get("scraped_urls")
+        scraped_urls = raw_scraped_urls if isinstance(raw_scraped_urls, list) else []
         return cls(
             session_name=str(payload.get("session_name") or ""),
             query_cursor=int(payload.get("query_cursor") or 0),
             discovered_places=[
-                DiscoveredPlace.from_dict(dict(item))
+                DiscoveredPlace.from_dict(item)
                 for item in discovered_places
                 if isinstance(item, dict)
             ],

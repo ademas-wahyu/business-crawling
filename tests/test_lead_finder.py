@@ -1,8 +1,10 @@
+import csv
 import tempfile
 import unittest
-import csv
 from pathlib import Path
 
+import lead_finder.headless as headless_module
+import lead_finder.scraper as scraper_module
 from lead_finder.audit import classify_page_result
 from lead_finder.headless import (
     append_raw_record,
@@ -17,8 +19,6 @@ from lead_finder.models import RawPlaceRecord, ScrapeConfig
 from lead_finder.scoring import calculate_lead_score, describe_opportunity
 from lead_finder.scraper import CaptchaDetectedError, GoogleMapsScraper
 from lead_finder.storage import LeadDatabase
-import lead_finder.headless as headless_module
-import lead_finder.scraper as scraper_module
 
 
 class QueryBuilderTests(unittest.TestCase):
@@ -232,9 +232,11 @@ class StorageTests(unittest.TestCase):
 
             service = LeadFinderService()
             summary = service.process_raw_records(config, [hot_record, low_record])
+            raw_lead_ids = summary["lead_ids"]
+            lead_ids = raw_lead_ids if isinstance(raw_lead_ids, list) else []
             csv_file, exported_count = service.export_leads_by_ids(
                 str(db_path),
-                list(summary["lead_ids"]),
+                lead_ids,
                 str(export_path),
                 opportunity_fit_filter="hot",
             )
@@ -274,7 +276,11 @@ class HeadlessStorageTests(unittest.TestCase):
             self.assertEqual(len(loaded_records), 1)
             self.assertEqual(loaded_records[0].nama_usaha, "Klinik Mawar")
 
-            from lead_finder.models import DiscoveredPlace, ScrapeCheckpoint, SearchQuery
+            from lead_finder.models import (
+                DiscoveredPlace,
+                ScrapeCheckpoint,
+                SearchQuery,
+            )
 
             checkpoint = ScrapeCheckpoint(
                 session_name="session",
@@ -298,25 +304,35 @@ class HeadlessStorageTests(unittest.TestCase):
             save_checkpoint(checkpoint_path, checkpoint)
             loaded_checkpoint = load_checkpoint(checkpoint_path)
             self.assertIsNotNone(loaded_checkpoint)
-            self.assertEqual(loaded_checkpoint.session_name, "session")
-            self.assertEqual(loaded_checkpoint.scraped_urls, [record.maps_url])
-            self.assertEqual(loaded_checkpoint.status, "blocked")
+
+            checkpoint_result = loaded_checkpoint
+            assert checkpoint_result is not None
+
+            self.assertEqual(checkpoint_result.session_name, "session")
+            self.assertEqual(checkpoint_result.scraped_urls, [record.maps_url])
+            self.assertEqual(checkpoint_result.status, "blocked")
 
     def test_load_keywords_and_locations_from_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             keywords_path = Path(tmpdir) / "kata-kunci.csv"
             locations_path = Path(tmpdir) / "lokasi.txt"
-            keywords_path.write_text("Kata_Kunci\nKlinik\nSalon\nKlinik\n", encoding="utf-8")
+            keywords_path.write_text(
+                "Kata_Kunci\nKlinik\nSalon\nKlinik\n", encoding="utf-8"
+            )
             locations_path.write_text("Bandung\nJakarta\nBandung\n", encoding="utf-8")
 
             self.assertEqual(load_keywords_csv(keywords_path), ["Klinik", "Salon"])
-            self.assertEqual(load_locations_text(locations_path), ["Bandung", "Jakarta"])
+            self.assertEqual(
+                load_locations_text(locations_path), ["Bandung", "Jakarta"]
+            )
 
 
 class BatchRunnerTests(unittest.TestCase):
     def test_run_city_batch_retries_after_blocked_per_city_keyword(self) -> None:
         original_runner = headless_module.run_headless_session
-        self.addCleanup(setattr, headless_module, "run_headless_session", original_runner)
+        self.addCleanup(
+            setattr, headless_module, "run_headless_session", original_runner
+        )
 
         calls: list[str] = []
         sleeps: list[float] = []
@@ -380,7 +396,9 @@ class BatchRunnerTests(unittest.TestCase):
 
     def test_run_city_batch_retries_after_unexpected_error(self) -> None:
         original_runner = headless_module.run_headless_session
-        self.addCleanup(setattr, headless_module, "run_headless_session", original_runner)
+        self.addCleanup(
+            setattr, headless_module, "run_headless_session", original_runner
+        )
 
         calls: list[str] = []
         sleeps: list[float] = []

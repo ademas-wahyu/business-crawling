@@ -58,8 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=5,
         help="Berhenti jika hasil tidak bertambah setelah beberapa putaran scroll.",
     )
-    parser.add_argument("--scroll-pause", type=float, default=1.5, help="Jeda antar scroll.")
-    parser.add_argument("--detail-pause", type=float, default=2.0, help="Jeda saat buka detail.")
+    parser.add_argument(
+        "--scroll-pause", type=float, default=1.5, help="Jeda antar scroll."
+    )
+    parser.add_argument(
+        "--detail-pause", type=float, default=2.0, help="Jeda saat buka detail."
+    )
     parser.add_argument(
         "--audit-timeout",
         type=float,
@@ -132,7 +136,12 @@ def main() -> int:
         parser.error("Tidak ada kata kunci untuk dijalankan.")
 
     niche_payload = load_niche_payload(args.niche_path)
-    excluded_keywords = [str(item) for item in niche_payload.get("excluded_keywords") or []]
+    raw_excluded_keywords = niche_payload.get("excluded_keywords")
+    excluded_keywords = (
+        [str(item) for item in raw_excluded_keywords if str(item).strip()]
+        if isinstance(raw_excluded_keywords, list)
+        else []
+    )
     template_config = ScrapeConfig(
         selected_niche_packs=["CSV Keywords"],
         niche_packs={"CSV Keywords": keywords},
@@ -174,7 +183,12 @@ def main() -> int:
 
     success_count = sum(1 for item in summaries if item["status"] == "success")
     blocked_count = sum(1 for item in summaries if item["status"] == "blocked")
-    exported_total = sum(int(item.get("total_exported") or 0) for item in summaries)
+    exported_total = sum(
+        value
+        for item in summaries
+        for value in [item.get("total_exported")]
+        if isinstance(value, int)
+    )
 
     print(f"Job selesai: {success_count}")
     print(f"Job masih blocked: {blocked_count}")

@@ -1,21 +1,31 @@
+import os
 import re
+import shutil
 import time
 from collections import OrderedDict
 from typing import Callable, Optional
 from urllib.parse import quote_plus
 
-from .models import DiscoveredPlace, RawPlaceRecord, ScrapeCheckpoint, ScrapeConfig, SearchQuery
+from .models import (
+    DiscoveredPlace,
+    RawPlaceRecord,
+    ScrapeCheckpoint,
+    ScrapeConfig,
+    SearchQuery,
+)
 from .utils import normalize_maps_url
 
 try:
     from selenium import webdriver
     from selenium.common.exceptions import TimeoutException, WebDriverException
+    from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.support.ui import WebDriverWait
 except ModuleNotFoundError:
     webdriver = None
     TimeoutException = WebDriverException = Exception
+    Service = None
     By = EC = WebDriverWait = None
 
 LogCallback = Callable[[str], None]
@@ -28,7 +38,9 @@ class CaptchaDetectedError(RuntimeError):
 
 
 class GoogleMapsScraper:
-    def __init__(self, config: ScrapeConfig, logger: Optional[LogCallback] = None) -> None:
+    def __init__(
+        self, config: ScrapeConfig, logger: Optional[LogCallback] = None
+    ) -> None:
         self.config = config
         self.log = logger or (lambda _message: None)
         self.driver = None
@@ -44,11 +56,15 @@ class GoogleMapsScraper:
         on_record: Optional[RecordCallback] = None,
     ) -> list[RawPlaceRecord]:
         if webdriver is None:
-            raise RuntimeError("Paket selenium belum terpasang. Jalankan: pip install selenium")
+            raise RuntimeError(
+                "Paket selenium belum terpasang. Jalankan: pip install selenium"
+            )
 
         queries = self.build_queries()
         if not queries:
-            raise ValueError("Pilih minimal satu niche pack dan isi minimal satu wilayah.")
+            raise ValueError(
+                "Pilih minimal satu niche pack dan isi minimal satu wilayah."
+            )
 
         state = checkpoint or ScrapeCheckpoint(session_name="default")
         state.query_cursor = max(0, min(state.query_cursor, len(queries)))
@@ -59,9 +75,7 @@ class GoogleMapsScraper:
         )
         raw_records = list(existing_records or [])
         scraped_urls: OrderedDict[str, None] = OrderedDict(
-            (record.maps_url, None)
-            for record in raw_records
-            if record.maps_url
+            (record.maps_url, None) for record in raw_records if record.maps_url
         )
         for url in state.scraped_urls:
             if url:
@@ -93,7 +107,9 @@ class GoogleMapsScraper:
             for index, (url, search_query) in enumerate(place_map.items(), start=1):
                 if url in scraped_urls:
                     continue
-                raw_records.append(self._scrape_place_detail(url, search_query, index, total))
+                raw_records.append(
+                    self._scrape_place_detail(url, search_query, index, total)
+                )
                 if on_record is not None:
                     on_record(raw_records[-1])
                 scraped_urls[url] = None
@@ -112,14 +128,19 @@ class GoogleMapsScraper:
 
     def build_queries(self) -> list[SearchQuery]:
         location_pairs = self._expand_locations(self.config.locations)
-        selected_packs = self.config.selected_niche_packs or list(self.config.niche_packs.keys())
+        selected_packs = self.config.selected_niche_packs or list(
+            self.config.niche_packs.keys()
+        )
         queries: OrderedDict[str, SearchQuery] = OrderedDict()
 
         for niche_pack in selected_packs:
             keywords = self.config.niche_packs.get(niche_pack, [])
             for keyword in keywords:
                 for base_location, location_variant in location_pairs:
-                    for query in (f"{keyword} di {location_variant}", f"{keyword} {location_variant}"):
+                    for query in (
+                        f"{keyword} di {location_variant}",
+                        f"{keyword} {location_variant}",
+                    ):
                         queries.setdefault(
                             query,
                             SearchQuery(
@@ -140,6 +161,9 @@ class GoogleMapsScraper:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-infobars")
+        options.add_argument("--remote-debugging-port=9222")
         options.add_argument(
             "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -147,15 +171,63 @@ class GoogleMapsScraper:
         if self.config.headless:
             options.add_argument("--headless=new")
 
+        chrome_binary = self._resolve_chrome_binary()
+        if chrome_binary:
+            options.binary_location = chrome_binary
+
+        service = self._resolve_chromedriver_service()
+
         try:
-            driver = webdriver.Chrome(options=options)
+            if service is not None:
+                driver = webdriver.Chrome(service=service, options=options)
+            else:
+                driver = webdriver.Chrome(options=options)
             driver.set_page_load_timeout(45)
             driver.implicitly_wait(2)
             return driver
         except WebDriverException as exc:
             raise RuntimeError(
-                "Chrome/Chromedriver tidak siap. Pastikan Google Chrome terpasang."
+                "Chrome/Chromedriver tidak siap. "
+                "Untuk Google Colab, install chromium-browser dan chromedriver dulu."
             ) from exc
+
+    def _resolve_chrome_binary(self) -> str:
+        candidates = [
+            os.environ.get("GOOGLE_CHROME_BIN", ""),
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+        ]
+        for candidate in candidates:
+            if candidate and os.path.exists(candidate):
+                return candidate
+        which_candidate = (
+            shutil.which("google-chrome")
+            or shutil.which("chromium")
+            or shutil.which("chromium-browser")
+        )
+        return which_candidate or ""
+
+    def _resolve_chromedriver_service(self):
+        if Service is None:
+            return None
+
+        candidates = [
+            os.environ.get("CHROMEDRIVER_PATH", ""),
+            "/usr/bin/chromedriver",
+            "/usr/lib/chromium-browser/chromedriver",
+            "/usr/lib/chromium/chromedriver",
+        ]
+        for candidate in candidates:
+            if candidate and os.path.exists(candidate):
+                return Service(candidate)
+
+        which_candidate = shutil.which("chromedriver")
+        if which_candidate:
+            return Service(which_candidate)
+
+        return None
 
     def _expand_locations(self, locations: list[str]) -> list[tuple[str, str]]:
         expanded: OrderedDict[tuple[str, str], None] = OrderedDict()
@@ -170,7 +242,9 @@ class GoogleMapsScraper:
                 expanded[(location, f"{location} {suffix}")] = None
         return list(expanded.keys())
 
-    def _collect_place_urls(self, query: str, per_query_limit: Optional[int]) -> list[str]:
+    def _collect_place_urls(
+        self, query: str, per_query_limit: Optional[int]
+    ) -> list[str]:
         search_url = f"https://www.google.com/maps/search/{quote_plus(query)}"
         self.driver.get(search_url)
         time.sleep(2)
@@ -216,7 +290,9 @@ class GoogleMapsScraper:
             if self.config.max_scrolls > 0 and scroll_count >= self.config.max_scrolls:
                 break
 
-            self.driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", feed)
+            self.driver.execute_script(
+                "arguments[0].scrollTop = arguments[0].scrollHeight;", feed
+            )
             scroll_count += 1
             time.sleep(self.config.scroll_pause)
             self._raise_if_blocked("proses scroll hasil pencarian")
@@ -251,7 +327,11 @@ class GoogleMapsScraper:
 
         name = self._find_text(["h1.DUwDvf", "h1.fontHeadlineLarge"], wait_seconds=10)
         category = self._find_text(
-            ["button[jsaction='pane.rating.category']", "button.DkEaL", "button[jsaction*='category']"]
+            [
+                "button[jsaction='pane.rating.category']",
+                "button.DkEaL",
+                "button[jsaction*='category']",
+            ]
         )
         address = self._find_text(
             [
@@ -303,7 +383,9 @@ class GoogleMapsScraper:
         rating = None
         review_count = None
 
-        rating_match = re.search(r"([0-5](?:[.,]\d)?)\s*(?:bintang|stars)", blob, flags=re.IGNORECASE)
+        rating_match = re.search(
+            r"([0-5](?:[.,]\d)?)\s*(?:bintang|stars)", blob, flags=re.IGNORECASE
+        )
         if rating_match:
             rating = float(rating_match.group(1).replace(",", "."))
 
@@ -346,7 +428,9 @@ class GoogleMapsScraper:
                 continue
         return "-"
 
-    def _remaining_slots(self, place_map: OrderedDict[str, SearchQuery]) -> Optional[int]:
+    def _remaining_slots(
+        self, place_map: OrderedDict[str, SearchQuery]
+    ) -> Optional[int]:
         if self.config.max_results <= 0:
             return None
         return max(self.config.max_results - len(place_map), 0)
