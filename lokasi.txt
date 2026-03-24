@@ -1,0 +1,250 @@
+Jakarta Timur
+Jakarta Barat
+Jakarta Utara
+Jakarta Selatan
+Jakarta Pusat
+Tangerang
+Tangerang Selatan
+Serang
+Cilegon
+Rangkasbitung
+Bandung
+Bekasi
+Depok
+Bogor
+Cimahi
+Tasikmalaya
+Cirebon
+Sukabumi
+Banjar
+Cianjur
+Karawang
+Subang
+Indramayu
+Purwakarta
+Garut
+Sumedang
+Kuningan
+Semarang
+Surakarta
+Magelang
+Salatiga
+Pekalongan
+Tegal
+Kudus
+Rembang
+Purwodadi
+Purworejo
+Cilacap
+Purwokerto
+Purbalingga
+Kebumen
+Wonosobo
+Temanggung
+Klaten
+Banyumas
+Batang
+Yogyakarta
+Sleman
+Bantul
+Kulon Progo
+Gunung Kidul
+Surabaya
+Malang
+Kediri
+Madiun
+Blitar
+Mojokerto
+Jombang
+Sidoarjo
+Lamongan
+Gresik
+Tuban
+Bojonegoro
+Ngawi
+Magetan
+Pacitan
+Ponorogo
+Trenggalek
+Tulunggagung
+Lumajang
+Jember
+Banyuwangi
+Probolinggo
+Pasuruan
+Bondowoso
+Situbondo
+Nganjuk
+Denpasar
+Singaraja
+Tabanan
+Gianyar
+Klungkung
+Bangli
+Amlapura
+Negara
+Mataram
+Praya
+Sumbawa Besar
+Dompu
+Bima
+Taliwang
+Sumbawa
+Kupang
+Ende
+Maumere
+Ruteng
+Larantuka
+Atambua
+Waingapu
+Labuan Bajo
+Banda Aceh
+Langsa
+Lhokseumawe
+Sabang
+Meulaboh
+Sigli
+Bireuen
+Kutacane
+Calang
+Takengon
+Blang Pidie
+Medan
+Binjai
+Pematangsiantar
+Tebing Tinggi
+Sibolga
+Tanjung Balai
+Padang Sidempuan
+Gunungsitoli
+Kabanjahe
+Rantau Prapat
+Padang
+Bukittinggi
+Padang Panjang
+Payakumbuh
+Pariaman
+Sawahlunto
+Solok
+Sungai Penuh
+Pekanbaru
+Dumai
+Siak Sri Indrapura
+Bengkalis
+Selat Panjang
+Bangkinang
+Rengat
+Tanjung Pinang
+Batam
+Bintan
+Karimun
+Dabo Singkep
+Ranai
+Jambi
+Sungai Penuh
+Bangko
+Muara Bungo
+Muara Bulian
+Kuala Tungkal
+Palembang
+Lubuklinggau
+Pagar Alam
+Prabumulih
+Sekayu
+Lahat
+Baturaja
+Martapura (Sumsel)
+Pangkal Pinang
+Tanjung Pandan
+Koba
+Manggar
+Bandar Lampung
+Metro
+Kotabumi
+Liwa
+Krui
+Pringsewu
+Menggala
+Kalianda
+Bengkulu
+Manna
+Curup
+Mukomuko
+Kaur
+Banjarmasin
+Banjarbaru
+Martapura
+Kandangan
+Rantau (Kalsel)
+Barabai
+Pelaihari
+Tanjung (Tabalong)
+Palangka Raya
+Kuala Kapuas
+Sampit
+Pangkalan Bun
+Puruk Cahu
+Muara Teweh
+Kasongan
+Buntok
+Samarinda
+Balikpapan
+Bontang
+Tanjung Redeb
+Sangatta
+Tarakan
+Tenggarong
+Penajam
+Pontianak
+Singkawang
+Sintang
+Ketapang
+Mempawah
+Sekadau
+Sanggau
+Putussibau
+Ngabang
+Tanjung Selor
+Malinau
+Nunukan
+Sebatik
+Gorontalo
+Tilamuta
+Kwandang
+Marisa
+Limboto
+Palu
+Poso
+Luwuk
+Donggala
+Parigi
+Mori
+Ampana
+Toli-Toli
+Buol
+Makassar
+Parepare
+Palopo
+Bone
+Soppeng
+Selayar
+Bulukumba
+Sinjai
+Enrekang
+Watampone
+Pinrang
+Majene
+Mamuju
+Polewali
+Mamasa
+Pasangkayu
+Kendari
+Baubau
+Kolaka
+Unaaha
+Raha
+Wangi-Wangi
+Manado
+Bitung
+Tomohon
+Kotamobagu
